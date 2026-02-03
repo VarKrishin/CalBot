@@ -1,0 +1,59 @@
+/** Cloudflare Worker bindings for CalBot */
+export interface Env {
+  /** Telegram */
+  TELEGRAM_BOT_TOKEN: string
+
+  /** Reference foods (R1) – Cloudflare D1. Run: wrangler d1 create calbot-r1, then apply migrations. */
+  DB: D1Database
+
+  /** Google Sheets – Nutrition tab + Tracker tabs. Set via wrangler secret put. */
+  GOOGLE_SERVICE_ACCOUNT_EMAIL: string
+  GOOGLE_PRIVATE_KEY: string
+  NUTRITION_SHEET_ID: string
+  TRACKER_SHEET_ID: string
+
+  /** FatSecret Platform API (recommended for unknown foods) */
+  FATSECRET_CLIENT_ID?: string
+  FATSECRET_CLIENT_SECRET?: string
+
+  /** Nutritionix (optional fallback) */
+  NUTRITIONIX_APP_ID?: string
+  NUTRITIONIX_API_KEY?: string
+
+  /** Workers AI */
+  AI: Ai
+
+  /** Vectorize (Phase 2) */
+  VECTORIZE?: VectorizeIndex
+
+  /** Optional: require Authorization: Bearer <ADMIN_SECRET> for /admin/sync-vectorize */
+  ADMIN_SECRET?: string
+}
+
+/** Minimal D1 binding type (reference foods table). */
+export interface D1Database {
+  prepare(sql: string): D1PreparedStatement
+  batch(statements: D1PreparedStatement[]): Promise<D1BatchResult>
+}
+export interface D1PreparedStatement {
+  bind(...values: unknown[]): D1PreparedStatement
+  all<T = unknown>(): Promise<{ results?: T[] }>
+  run(): Promise<{ success: boolean }>
+}
+export interface D1BatchResult {
+  results?: Array<{ results?: unknown[]; success?: boolean }>
+}
+
+export interface Ai {
+  run(
+    model: string,
+    options: { messages?: Array<{ role: string; content: string }>; prompt?: string; audio?: ArrayBuffer }
+  ): Promise<{ response?: string; choices?: Array<{ message?: { content?: string }; text?: string }>; data?: number[][] }>
+}
+
+export interface VectorizeIndex {
+  query(vector: number[], options: { topK: number; returnMetadata?: boolean }): Promise<{
+    matches: Array<{ score: number; metadata?: Record<string, unknown> }>
+  }>
+  upsert(vectors: Array<{ id: string; values: number[]; metadata?: Record<string, unknown> }>): Promise<{ count: number }>
+}

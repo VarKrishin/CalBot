@@ -1,0 +1,19 @@
+# Copy to .dev.vars and fill in real values for local dev (pnpm run dev).
+# .dev.vars is gitignored. For production, use: pnpm exec wrangler secret put <NAME>
+
+# Required
+TELEGRAM_BOT_TOKEN=
+GOOGLE_SERVICE_ACCOUNT_EMAIL=
+GOOGLE_PRIVATE_KEY=
+# R1 (reference foods) = Cloudflare D1 – no env var; configure in wrangler.jsonc and run migrations.
+NUTRITION_SHEET_ID=
+TRACKER_SHEET_ID=
+
+# Unknown foods API (use one or both; FatSecret is preferred)
+FATSECRET_CLIENT_ID=
+FATSECRET_CLIENT_SECRET=
+# NUTRITIONIX_APP_ID=
+# NUTRITIONIX_API_KEY=
+
+# Optional: protect /admin/sync-vectorize
+# ADMIN_SECRET=
