@@ -1,2 +1,21 @@
-# CalBot
-CalBot is a calorie tracker, say what you ate in telegram via voice or text, it updates a Google sheet and cloudflare R1. Built so that both me and my coach can be happy.
+```txt
+npm install
+npm run dev
+```
+
+```txt
+npm run deploy
+```
+
+[For generating/synchronizing types based on your Worker configuration run](https://developers.cloudflare.com/workers/wrangler/commands/#types):
+
+```txt
+npm run cf-typegen
+```
+
+Pass the `CloudflareBindings` as generics when instantiation `Hono`:
+
+```ts
+// src/index.ts
+const app = new Hono<{ Bindings: CloudflareBindings }>()
+```
