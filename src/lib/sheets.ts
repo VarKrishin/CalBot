@@ -49,6 +49,13 @@ export function getCurrentMonthSheetName(): string {
   return `${y}-${m}_Tracker`
 }
 
+/** Sheet names with hyphens (e.g. 2026-02_Tracker) must be single-quoted in Sheets A1 range. */
+function sheetRange(sheetName: string, range: string): string {
+  const needsQuotes = /[-\\[\]]/.test(sheetName)
+  const quoted = needsQuotes ? `'${sheetName.replace(/'/g, "''")}'` : sheetName
+  return `${quoted}!${range}`
+}
+
 export async function ensureTrackerSheetExists(env: Env): Promise<string> {
   const sheetName = getCurrentMonthSheetName()
   const metaUrl = `${SHEETS_BASE}/${env.TRACKER_SHEET_ID}?fields=sheets(properties(title))`
@@ -69,7 +76,7 @@ export async function ensureTrackerSheetExists(env: Env): Promise<string> {
     ],
   })
 
-  const appendUrl = `${SHEETS_BASE}/${env.TRACKER_SHEET_ID}/values/${encodeURIComponent(sheetName + '!A1:I1')}:append?valueInputOption=USER_ENTERED`
+  const appendUrl = `${SHEETS_BASE}/${env.TRACKER_SHEET_ID}/values/${encodeURIComponent(sheetRange(sheetName, 'A1:I1'))}:append?valueInputOption=USER_ENTERED`
   await sheetsFetch(env, 'POST', appendUrl, {
     values: [
       [
@@ -101,7 +108,7 @@ export async function appendTrackerRows(env: Env, rows: TrackerRow[]): Promise<v
     r.carbs,
     r.water ?? '',
   ])
-  const url = `${SHEETS_BASE}/${env.TRACKER_SHEET_ID}/values/${encodeURIComponent(sheetName + '!A:I')}:append?valueInputOption=USER_ENTERED`
+  const url = `${SHEETS_BASE}/${env.TRACKER_SHEET_ID}/values/${encodeURIComponent(sheetRange(sheetName, 'A:I'))}:append?valueInputOption=USER_ENTERED`
   const res = await sheetsFetch(env, 'POST', url, { values })
   if (!res.ok) throw new Error(`Sheets append failed: ${res.status} ${await res.text()}`)
 }
@@ -178,12 +185,15 @@ export async function fetchNutritionRaw(env: Env): Promise<Array<{ name: string;
   }).filter((r) => r.name !== '')
 }
 
-/** Fetch current month Tracker sheet as TrackerRow[] (for sync). Skips header row. */
+/** Fetch current month Tracker sheet as TrackerRow[] (for sync). Skips header row. Returns [] if sheet missing (400/404). */
 export async function fetchTrackerSheet(env: Env, sheetName: string): Promise<TrackerRow[]> {
-  const url = `${SHEETS_BASE}/${env.TRACKER_SHEET_ID}/values/${encodeURIComponent(sheetName + '!A2:I')}`
+  // Sheet names with hyphens need quotes in A1; use encodeURIComponent for the path (keeps range valid).
+  const range = sheetRange(sheetName, 'A2:I')
+  const url = `${SHEETS_BASE}/${env.TRACKER_SHEET_ID}/values/${encodeURIComponent(range)}`
   const res = await sheetsFetch(env, 'GET', url)
   if (!res.ok) {
-    if (res.status === 404) return []
+    // 400 often means sheet doesn't exist yet (created on first log); 404 = not found
+    if (res.status === 404 || res.status === 400) return []
     throw new Error(`Sheets Tracker read failed: ${res.status} ${await res.text()}`)
   }
   const data = (await res.json()) as { values?: unknown[][] }
