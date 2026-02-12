@@ -11,6 +11,8 @@ pnpm install
 pnpm run dev
 ```
 
+`pnpm run dev` runs with `--remote`, so D1 and other bindings use the **cloud** (no local D1).
+
 ### 2. Environment variables
 
 | Variable | Required | Description |
@@ -39,10 +41,10 @@ Reference foods (R1) live in **Cloudflare D1**:
    pnpm exec wrangler d1 create calbot-r1
    ```
 2. In `wrangler.jsonc`, set `database_id` under `d1_databases` to the ID from the output (replace `REPLACE_AFTER_D1_CREATE`).
-3. Apply the schema (local and remote):
+3. Apply the schema in the cloud (dev runs with `--remote`, so only remote migrations are needed):
    ```bash
-   pnpm exec wrangler d1 execute calbot-r1 --local --file=./migrations/0000_r1_foods.sql
    pnpm exec wrangler d1 execute calbot-r1 --remote --file=./migrations/0000_r1_foods.sql
+   pnpm exec wrangler d1 execute calbot-r1 --remote --file=./migrations/0001_sync_tables.sql
    ```
 4. Seed R1 (e.g. from your Nutrition sheet or a JSON array). Example:
    ```bash

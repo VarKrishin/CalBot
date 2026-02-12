@@ -1,5 +1,5 @@
-import type { Env } from '../env.d'
-import type { ResolvedFood } from '../types'
+import type { Env } from '../../env.d'
+import type { ResolvedFood } from '../../types'
 
 const NUTRITIONIX_URL = 'https://trackapi.nutritionix.com/v2/search/instant'
 

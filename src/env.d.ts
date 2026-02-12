@@ -47,7 +47,13 @@ export interface D1BatchResult {
 export interface Ai {
   run(
     model: string,
-    options: { messages?: Array<{ role: string; content: string }>; prompt?: string; audio?: ArrayBuffer }
+    options: {
+      messages?: Array<{ role: string; content: string }>
+      prompt?: string
+      audio?: ArrayBuffer
+      /** Used by embedding models (e.g. @cf/qwen/qwen3-embedding-0.6b) */
+      text?: string | string[]
+    }
   ): Promise<{ response?: string; choices?: Array<{ message?: { content?: string }; text?: string }>; data?: number[][] }>
 }
 

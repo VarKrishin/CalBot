@@ -8,7 +8,7 @@ Run these from the project root (`CalBot/`). Use **pnpm** (or **npx**) so Wrangl
 
 | Use case | Where | How |
 |----------|--------|-----|
-| **Local dev** (`pnpm run dev`) | `.dev.vars` in project root | Copy `.dev.vars.example` to `.dev.vars`, fill in values. File is gitignored. |
+| **Local dev** (`pnpm run dev`) | `.dev.vars` in project root | Copy `.dev.vars.example` to `.dev.vars`, fill in values. Dev uses **remote** D1 (cloud). File is gitignored. |
 | **Production** (deployed worker) | **Cloudflare** (secrets) | `pnpm exec wrangler secret put <NAME>` for each variable. Not in repo. |
 
 Do **not** commit `.dev.vars` or put production secrets in the repo. Use **Cloudflare Dashboard** → Workers & Pages → your worker → Settings → Variables and Secrets to view or add secrets there if you prefer over the CLI.
@@ -30,11 +30,9 @@ pnpm install
    pnpm exec wrangler d1 create calbot-r1
    ```
 2. In `wrangler.jsonc`, replace `REPLACE_AFTER_D1_CREATE` (under `d1_databases`) with the **database_id** from the command output.
-3. Apply the schema (both migrations):
+3. Apply the schema in the cloud (dev uses `--remote`, so no local D1):
    ```bash
-   pnpm exec wrangler d1 execute calbot-r1 --local --file=./migrations/0000_r1_foods.sql
    pnpm exec wrangler d1 execute calbot-r1 --remote --file=./migrations/0000_r1_foods.sql
-   pnpm exec wrangler d1 execute calbot-r1 --local --file=./migrations/0001_sync_tables.sql
    pnpm exec wrangler d1 execute calbot-r1 --remote --file=./migrations/0001_sync_tables.sql
    ```
 4. After deploy, seed R1 via `POST /admin/seed-r1` (see step 8) or add rows manually with D1 Studio / SQL.
@@ -139,6 +137,15 @@ curl -X POST "https://calbot.<your-subdomain>.workers.dev/admin/sync" \
   -H "Authorization: Bearer <YOUR_ADMIN_SECRET>"
 ```
 
+```bash
+curl -X POST "http://localhost:8787/admin/sync" \
+  -H "Authorization: Bearer <YOUR_ADMIN_SECRET>"
+```
+```
+curl -X POST "http://localhost:8787/admin/sync-vectorize" \
+     -H "Authorization: Bearer <YOUR_ADMIN_SECRET>"
+```
+
 This pulls the Nutrition sheet and current month’s Tracker sheet into D1. Re-run whenever you edit the sheets and want D1 updated.
 
 ---
@@ -147,8 +154,13 @@ This pulls the Nutrition sheet and current month’s Tracker sheet into D1. Re-r
 
 Only if you want semantic search (e.g. “chappati” → “Chapati”):
 
-1. Create the index:
+1. Create the index (1024 dimensions to match the embedding model):
    ```bash
+   pnpm run vectorize:create
+   ```
+   **If you see "expected 512 dimensions, got 1024":** delete the old index and recreate, then re-sync (step 4):
+   ```bash
+   pnpm exec wrangler vectorize delete nutrition-foods
    pnpm run vectorize:create
    ```
 2. In **wrangler.jsonc**, uncomment the `vectorize` block (add the `"vectorize": [{ "binding": "VECTORIZE", "index_name": "nutrition-foods" }]` line after the `ai` block).

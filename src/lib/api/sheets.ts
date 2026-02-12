@@ -1,6 +1,6 @@
 import * as jose from 'jose'
-import type { Env } from '../env.d'
-import type { R1Row, TrackerRow } from '../types'
+import type { Env } from '../../env.d'
+import type { R1Row, TrackerRow } from '../../types'
 
 const SCOPE = 'https://www.googleapis.com/auth/spreadsheets'
 const TOKEN_URL = 'https://oauth2.googleapis.com/token'

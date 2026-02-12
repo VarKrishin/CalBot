@@ -1,5 +1,5 @@
-import type { Env } from '../env.d'
-import type { R1Row, ResolvedFood } from '../types'
+import type { Env } from '../../env.d'
+import type { R1Row, ResolvedFood } from '../../types'
 
 const EMBEDDING_MODEL = '@cf/qwen/qwen3-embedding-0.6b'
 const SIMILARITY_THRESHOLD = 0.85
@@ -33,7 +33,7 @@ export async function searchFood(env: Env, foodName: string): Promise<Omit<Resol
     protein,
     fat,
     carbs,
-    estimated: ((m.source as string) === 'nutritionix' || (m.source as string) === 'fatsecret'),
+    estimated: (m.source as string) !== 'r1',
   }
 }
 
@@ -51,15 +51,30 @@ function toMetadata(row: R1Row & { source?: string }): Record<string, unknown> {
   }
 }
 
+/** Vectorize IDs are max 64 bytes. We hash (name, unit) to a fixed 32-char hex ID so long names never exceed the limit. */
+async function vectorId(key: string): Promise<string> {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(key))
+  const hex = Array.from(new Uint8Array(buf))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('')
+  return hex.slice(0, 32)
+}
+
+/** One vector per (name, unit). R1 wins over Nutrition sheet when both have the same food. */
 export async function syncVectorize(env: Env, r1Rows: R1Row[], nutritionRows: R1Row[]): Promise<number> {
   if (!env.VECTORIZE) throw new Error('VECTORIZE binding not configured')
-  const all = [
-    ...r1Rows.map((r) => ({ ...r, source: 'r1' as const })),
-    ...nutritionRows.map((r) => ({ ...r, source: 'nutritionix' as const })),
-  ]
+  const key = (r: R1Row & { source?: string }) =>
+    `${String(r.name).trim()}-${String(r.unit).trim()}`.replace(/\s+/g, '_')
+  const byKey = new Map<string, R1Row & { source: 'r1' | 'sheet' }>()
+  for (const r of r1Rows) {
+    byKey.set(key(r), { ...r, source: 'r1' })
+  }
+  for (const r of nutritionRows) {
+    if (!byKey.has(key(r))) byKey.set(key(r), { ...r, source: 'sheet' } as unknown as R1Row & { source: 'r1' | 'sheet' })
+  }
   const vectors: Array<{ id: string; values: number[]; metadata: Record<string, unknown> }> = []
-  for (const row of all) {
-    const id = `${row.source}-${row.name}-${row.unit}`.replace(/\s+/g, '_')
+  for (const row of byKey.values()) {
+    const id = await vectorId(key(row))
     const values = await embed(env, row.name)
     vectors.push({ id, values, metadata: toMetadata(row) })
   }

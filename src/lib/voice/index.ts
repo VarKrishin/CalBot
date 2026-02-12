@@ -1,5 +1,5 @@
-import type { Env } from '../env.d'
-import { getFile, downloadFile } from './telegram'
+import type { Env } from '../../env.d'
+import { getFile, downloadFile } from '../channels/telegram'
 
 const WHISPER_MODEL = '@cf/openai/whisper-large-v3-turbo'
 

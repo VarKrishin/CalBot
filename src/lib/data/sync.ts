@@ -1,6 +1,6 @@
-import type { Env } from '../env.d'
-import type { TrackerRow } from '../types'
-import { fetchNutritionRaw, fetchTrackerSheet, getCurrentMonthSheetName } from './sheets'
+import type { Env } from '../../env.d'
+import type { TrackerRow } from '../../types'
+import { fetchNutritionRaw, fetchTrackerSheet, getCurrentMonthSheetName } from '../api/sheets'
 
 /**
  * Sync Google Sheets → D1 (per design: Sheets and D1 stay in sync).

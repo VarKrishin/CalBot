@@ -1,4 +1,4 @@
-import type { ParsedFood, R1Row, ResolvedFood } from '../types'
+import type { ParsedFood, R1Row, ResolvedFood } from '../../types'
 
 function normalize(s: string): string {
   return s.toLowerCase().trim().replace(/\s+/g, ' ')

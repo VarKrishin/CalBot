@@ -1,20 +1,15 @@
 import { Hono } from 'hono'
 import type { Env } from './env.d'
 import type { ParsedFood, ResolvedFood, TelegramUpdate, TrackerRow } from './types'
-import { sendMessage } from './lib/telegram'
-import { fetchR1, insertR1Rows } from './lib/r1'
-import { appendTrackerRows, appendNutritionRow } from './lib/sheets'
-import { parseMeal } from './lib/parse'
-import { resolveFood } from './lib/match'
-import { searchFood } from './lib/vectorize'
-import { getNutritionFromFatSecret } from './lib/fatsecret'
-import { getNutritionFromAPI } from './lib/nutritionix'
+import { sendMessage } from './lib/channels/telegram'
+import { fetchR1, insertR1Rows } from './lib/data/r1'
+import { appendTrackerRows, appendNutritionRow, fetchNutrition } from './lib/api/sheets'
+import { parseMeal, resolveFood, quantityMultiplier, searchFood, syncVectorize } from './lib/food'
+import { getNutritionFromFatSecret } from './lib/api/fatsecret'
+import { getNutritionFromAPI } from './lib/api/nutritionix'
 import { transcribeVoice } from './lib/voice'
-import { syncVectorize } from './lib/vectorize'
-import { syncSheetsToD1 } from './lib/sync'
-import { fetchNutrition } from './lib/sheets'
-import { quantityMultiplier } from './lib/units'
-import { withRetry } from './lib/retry'
+import { syncSheetsToD1 } from './lib/data/sync'
+import { withRetry } from './lib/utils/retry'
 
 const app = new Hono<{ Bindings: Env }>()
 
@@ -151,6 +146,25 @@ app.post('/webhook', async (c) => {
   return c.json({ ok: true })
 })
 
+/** Full sync: Sheets → D1, then R1 + Nutrition → Vectorize. One call updates both. */
+app.post('/admin/sync', async (c) => {
+  if (c.env.ADMIN_SECRET) {
+    const auth = c.req.header('Authorization')
+    if (auth !== `Bearer ${c.env.ADMIN_SECRET}`) return c.json({ error: 'Unauthorized' }, 401)
+  }
+  try {
+    const { nutrition, tracker } = await syncSheetsToD1(c.env)
+    const r1Rows = await fetchR1(c.env)
+    const nutritionRows = await fetchNutrition(c.env)
+    const vectorizeCount = await syncVectorize(c.env, r1Rows, nutritionRows)
+    return c.json({ ok: true, nutrition, tracker, vectorize: vectorizeCount })
+  } catch (e) {
+    console.error('Sync error', e)
+    return c.json({ error: String(e) }, 500)
+  }
+})
+
+/** Refresh only the vector search index (R1 + Nutrition → Vectorize). Use when you don't need to re-copy Sheets → D1. */
 app.post('/admin/sync-vectorize', async (c) => {
   if (c.env.ADMIN_SECRET) {
     const auth = c.req.header('Authorization')
@@ -163,21 +177,6 @@ app.post('/admin/sync-vectorize', async (c) => {
     return c.json({ ok: true, count })
   } catch (e) {
     console.error('Sync vectorize error', e)
-    return c.json({ error: String(e) }, 500)
-  }
-})
-
-/** Sync Google Sheets → D1 (Nutrition + current month Tracker). Per design: keeps Sheets and D1 in sync. */
-app.post('/admin/sync', async (c) => {
-  if (c.env.ADMIN_SECRET) {
-    const auth = c.req.header('Authorization')
-    if (auth !== `Bearer ${c.env.ADMIN_SECRET}`) return c.json({ error: 'Unauthorized' }, 401)
-  }
-  try {
-    const { nutrition, tracker } = await syncSheetsToD1(c.env)
-    return c.json({ ok: true, nutrition, tracker })
-  } catch (e) {
-    console.error('Sync sheets→D1 error', e)
     return c.json({ error: String(e) }, 500)
   }
 })

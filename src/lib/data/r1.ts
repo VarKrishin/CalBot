@@ -1,5 +1,5 @@
-import type { Env } from '../env.d'
-import type { R1Row } from '../types'
+import type { Env } from '../../env.d'
+import type { R1Row } from '../../types'
 
 /** Fetch all reference foods from Cloudflare D1 (R1 storage). */
 export async function fetchR1(env: Env): Promise<R1Row[]> {

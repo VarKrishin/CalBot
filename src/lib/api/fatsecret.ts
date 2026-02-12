@@ -1,5 +1,5 @@
-import type { Env } from '../env.d'
-import type { ResolvedFood } from '../types'
+import type { Env } from '../../env.d'
+import type { ResolvedFood } from '../../types'
 
 const TOKEN_URL = 'https://oauth.fatsecret.com/connect/token'
 const SEARCH_URL = 'https://platform.fatsecret.com/rest/foods/search/v1'

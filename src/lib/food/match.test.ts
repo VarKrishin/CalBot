@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { resolveFood } from './match'
-import type { ParsedFood, R1Row } from '../types'
+import type { ParsedFood, R1Row } from '../../types'
 
 const r1Rows: R1Row[] = [
   { name: 'Egg', unit: 'n', quantity: 1, calories: 78, protein: 6, fat: 5, carbs: 1, source: 'r1' },

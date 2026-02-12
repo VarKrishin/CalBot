@@ -1,5 +1,5 @@
-import type { Env } from '../env.d'
-import type { ParsedMeal } from '../types'
+import type { Env } from '../../env.d'
+import type { ParsedMeal } from '../../types'
 
 const MODEL = '@cf/qwen/qwen3-30b-a3b-fp8'
 
