@@ -2,6 +2,10 @@
 export interface Env {
   /** Telegram */
   TELEGRAM_BOT_TOKEN: string
+  /** Base URL for webhook (e.g. https://calbot.xxx.workers.dev). Set for production; used by POST /admin/telegram-set-webhook. */
+  TELEGRAM_WEBHOOK_BASE_URL?: string
+  /** If set (e.g. "true"), bot only echoes the message back; no meal logging. For local testing. */
+  TELEGRAM_ECHO_ONLY?: string
 
   /** Reference foods (R1) – Cloudflare D1. Run: wrangler d1 create calbot-r1, then apply migrations. */
   DB: D1Database

@@ -31,3 +31,29 @@ export async function downloadFile(env: Env, filePath: string): Promise<ArrayBuf
   if (!res.ok) throw new Error(`Download file failed: ${res.status}`)
   return res.arrayBuffer()
 }
+
+/** Get current webhook info (for debugging). */
+export async function getWebHookInfo(env: Env): Promise<{ url: string }> {
+  const url = `${TELEGRAM_API}/bot${env.TELEGRAM_BOT_TOKEN}/getWebhookInfo`
+  const res = await fetch(url)
+  if (!res.ok) throw new Error(`getWebhookInfo failed: ${res.status}`)
+  const data = (await res.json()) as { ok: boolean; result?: { url: string } }
+  if (!data.ok) throw new Error('Invalid getWebhookInfo response')
+  return { url: data.result?.url ?? '' }
+}
+
+/** Set webhook URL. Telegram only allows ports 443, 80, 88, 8443 (HTTPS). */
+export async function setWebHook(env: Env, webhookUrl: string, maxConnections = 100): Promise<void> {
+  const apiUrl = `${TELEGRAM_API}/bot${env.TELEGRAM_BOT_TOKEN}/setWebHook`
+  const res = await fetch(apiUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ url: webhookUrl, max_connections: maxConnections }),
+  })
+  if (!res.ok) {
+    const err = await res.text()
+    throw new Error(`setWebHook failed: ${res.status} ${err}`)
+  }
+  const data = (await res.json()) as { ok: boolean; description?: string }
+  if (!data.ok) throw new Error(data.description ?? 'setWebHook returned ok: false')
+}

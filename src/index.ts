@@ -1,149 +1,55 @@
 import { Hono } from 'hono'
 import type { Env } from './env.d'
-import type { ParsedFood, ResolvedFood, TelegramUpdate, TrackerRow } from './types'
-import { sendMessage } from './lib/channels/telegram'
 import { fetchR1, insertR1Rows } from './lib/data/r1'
-import { appendTrackerRows, appendNutritionRow, fetchNutrition } from './lib/api/sheets'
-import { parseMeal, resolveFood, quantityMultiplier, searchFood, syncVectorize } from './lib/food'
-import { getNutritionFromFatSecret } from './lib/api/fatsecret'
-import { getNutritionFromAPI } from './lib/api/nutritionix'
-import { transcribeVoice } from './lib/voice'
+import { fetchNutrition } from './lib/api/sheets'
+import { syncVectorize } from './lib/food/index'
 import { syncSheetsToD1 } from './lib/data/sync'
-import { withRetry } from './lib/utils/retry'
+import { setWebHook, getWebHookInfo } from './lib/channels/telegram'
+import { api } from './api'
 
 const app = new Hono<{ Bindings: Env }>()
 
 app.get('/', (c) => c.text('CalBot'))
 
-function scaleResolved(
-  base: Omit<ResolvedFood, 'quantity'> & { quantity: number; unit: string },
-  userQty: number,
-  userUnit: string
-): ResolvedFood {
-  const mult = quantityMultiplier(userQty, userUnit, base.quantity, base.unit)
-  return {
-    ...base,
-    quantity: userQty,
-    calories: Math.round(base.calories * mult),
-    protein: Math.round((base.protein * mult) * 10) / 10,
-    fat: Math.round((base.fat * mult) * 10) / 10,
-    carbs: Math.round((base.carbs * mult) * 10) / 10,
-  }
-}
+app.route('/', api)
 
-app.post('/webhook', async (c) => {
-  let update: TelegramUpdate
+/** Set Telegram webhook from the app: call this on your running app (ngrok URL when local, worker URL when deployed) and pass the base URL. App registers that URL + /api/telegram/webhook with Telegram. */
+app.post('/admin/telegram-set-webhook', async (c) => {
+  if (c.env.ADMIN_SECRET) {
+    const auth = c.req.header('Authorization')
+    if (auth !== `Bearer ${c.env.ADMIN_SECRET}`) return c.json({ error: 'Unauthorized' }, 401)
+  }
+  let baseUrl = c.env.TELEGRAM_WEBHOOK_BASE_URL
   try {
-    update = await c.req.json<TelegramUpdate>()
+    const body = (await c.req.json<{ baseUrl?: string }>().catch(() => ({}))) as { baseUrl?: string }
+    if (body.baseUrl) baseUrl = body.baseUrl
   } catch {
-    return c.json({ ok: false }, 400)
+    /* ignore */
   }
-  const msg = update.message
-  if (!msg?.chat?.id) return c.json({ ok: true })
-
-  const chatId = msg.chat.id
-  const reply = (text: string) => sendMessage(c.env, chatId, text).catch((e) => console.error('sendMessage', e))
-
-  let text: string
-  if (msg.voice) {
-    try {
-      text = await transcribeVoice(c.env, msg.voice.file_id)
-      if (!text) {
-        await reply('Could not transcribe the voice message. Try sending as text.')
-        return c.json({ ok: true })
-      }
-    } catch (e) {
-      console.error('Voice transcription error', e)
-      await reply('Voice transcription failed. Try sending as text.')
-      return c.json({ ok: true })
-    }
-  } else {
-    text = msg.text?.trim() ?? ''
+  if (!baseUrl) return c.json({ error: 'TELEGRAM_WEBHOOK_BASE_URL not set and no baseUrl in body' }, 400)
+  const webhookUrl = baseUrl.replace(/\/$/, '') + '/api/telegram/webhook'
+  try {
+    await setWebHook(c.env, webhookUrl)
+    return c.json({ ok: true, webhookUrl })
+  } catch (e) {
+    console.error('setWebHook error', e)
+    return c.json({ error: String(e) }, 500)
   }
+})
 
-  if (!text) return c.json({ ok: true })
-
-  if (text === '/start') {
-    await reply('Send what you ate, e.g. "2 eggs for breakfast" or "2 chapatis, 1 cup sambar for lunch". Voice messages work too.')
-    return c.json({ ok: true })
+/** Get current Telegram webhook URL (for debugging). */
+app.get('/admin/telegram-webhook-info', async (c) => {
+  if (c.env.ADMIN_SECRET) {
+    const auth = c.req.header('Authorization')
+    if (auth !== `Bearer ${c.env.ADMIN_SECRET}`) return c.json({ error: 'Unauthorized' }, 401)
   }
-
-  c.executionCtx.waitUntil(
-    (async () => {
-      try {
-        const parsed = await withRetry(() => parseMeal(c.env, text))
-        const r1Rows = await withRetry(() => fetchR1(c.env))
-        const resolved: Array<{ food: ResolvedFood; parsed: ParsedFood }> = []
-
-        for (const f of parsed.foods) {
-          let r: ResolvedFood | null = null
-          const vectorMatch = await searchFood(c.env, f.name)
-          if (vectorMatch) {
-            r = scaleResolved(vectorMatch, f.quantity, f.unit)
-          } else {
-            const r1Match = resolveFood(f, r1Rows)
-            if (r1Match) r = r1Match
-            else {
-              const apiFood = c.env.FATSECRET_CLIENT_ID
-                ? await withRetry(() => getNutritionFromFatSecret(c.env, f.name))
-                : await withRetry(() => getNutritionFromAPI(c.env, f.name))
-              const mult = quantityMultiplier(f.quantity, f.unit, apiFood.quantity, apiFood.unit)
-              r = {
-                ...apiFood,
-                quantity: f.quantity,
-                calories: Math.round(apiFood.calories * mult),
-                protein: Math.round((apiFood.protein * mult) * 10) / 10,
-                fat: Math.round((apiFood.fat * mult) * 10) / 10,
-                carbs: Math.round((apiFood.carbs * mult) * 10) / 10,
-              }
-              try {
-                await appendNutritionRow(c.env, {
-                  name: r.name,
-                  unit: r.unit,
-                  quantity: r.quantity,
-                  calories: r.calories,
-                  protein: r.protein,
-                  fat: r.fat,
-                  carbs: r.carbs,
-                  source: c.env.FATSECRET_CLIENT_ID ? 'fatsecret' : 'nutritionix',
-                })
-              } catch (e) {
-                console.error('Append Nutrition row failed', e)
-              }
-            }
-          }
-          if (r) resolved.push({ food: r, parsed: f })
-        }
-
-        const today = new Date().toISOString().split('T')[0]
-        const mealLabel = parsed.meal_time.charAt(0).toUpperCase() + parsed.meal_time.slice(1)
-        const rows: TrackerRow[] = resolved.map(({ food, parsed: p }) => ({
-          date: today,
-          mealTime: mealLabel,
-          foodItem: food.name,
-          quantity: String(p.quantity) + (p.unit !== 'n' ? ` ${p.unit}` : ''),
-          calories: food.calories,
-          protein: food.protein,
-          fat: food.fat,
-          carbs: food.carbs,
-        }))
-        if (rows.length) await withRetry(() => appendTrackerRows(c.env, rows))
-        const totalCal = rows.reduce((s, r) => s + r.calories, 0)
-        const totalPro = rows.reduce((s, r) => s + r.protein, 0)
-        const lines = [`✅ ${mealLabel} logged: ${totalCal} kcal, ${totalPro}g protein`]
-        for (const { food } of resolved) {
-          const est = food.estimated ? ' (estimated)' : ''
-          lines.push(`• ${food.quantity} ${food.name}: ${food.calories} kcal${est}`)
-        }
-        await reply(lines.join('\n'))
-      } catch (e) {
-        console.error('Pipeline error', e)
-        await reply('Something went wrong; try again.')
-      }
-    })()
-  )
-
-  return c.json({ ok: true })
+  try {
+    const info = await getWebHookInfo(c.env)
+    return c.json({ ok: true, ...info })
+  } catch (e) {
+    console.error('getWebHookInfo error', e)
+    return c.json({ error: String(e) }, 500)
+  }
 })
 
 /** Full sync: Sheets → D1, then R1 + Nutrition → Vectorize. One call updates both. */

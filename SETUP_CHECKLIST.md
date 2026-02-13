@@ -95,21 +95,29 @@ pnpm exec wrangler secret put ADMIN_SECRET
 
 ---
 
-## 7. Deploy and set Telegram webhook
+## 7. Set Telegram webhook (from the app)
+
+You always use **your app**: call `POST /admin/telegram-set-webhook` on whatever URL your app is reachable at, and pass that same URL as `baseUrl`. The app then tells Telegram to send updates to `{baseUrl}/api/telegram/webhook`.
+
+**Local (ngrok):** `pnpm run dev` in one terminal, `./scripts/ngrok-dev.sh` in another. Copy the ngrok **Forwarding** HTTPS URL, then:
 
 ```bash
-pnpm run deploy
-```
-
-Note the worker URL (e.g. `https://calbot.<your-subdomain>.workers.dev`). Then set the webhook:
-
-```bash
-curl -X POST "https://api.telegram.org/bot<YOUR_BOT_TOKEN>/setWebhook" \
+curl -X POST "https://YOUR_NGROK_URL/admin/telegram-set-webhook" \
+  -H "Authorization: Bearer <YOUR_ADMIN_SECRET>" \
   -H "Content-Type: application/json" \
-  -d '{"url": "https://calbot.<your-subdomain>.workers.dev/webhook"}'
+  -d '{"baseUrl": "https://YOUR_NGROK_URL"}'
 ```
 
-Replace `<YOUR_BOT_TOKEN>` and the worker host with your values.
+**Production (after deploy):** `pnpm run deploy`, note the worker URL, then:
+
+```bash
+curl -X POST "https://calbot.<your-subdomain>.workers.dev/admin/telegram-set-webhook" \
+  -H "Authorization: Bearer <YOUR_ADMIN_SECRET>" \
+  -H "Content-Type: application/json" \
+  -d '{"baseUrl": "https://calbot.<your-subdomain>.workers.dev"}'
+```
+
+Same endpoint, same body shape; only the URL you call and the `baseUrl` you pass change. Optional: set `TELEGRAM_WEBHOOK_BASE_URL` in production and omit the body so the app uses that as base URL. To clear the webhook later: `curl "https://api.telegram.org/bot<TOKEN>/deleteWebhook"`.
 
 ---
 

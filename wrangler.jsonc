@@ -25,5 +25,6 @@
 	// Apply schema (run both): wrangler d1 execute calbot-r1 --remote --file=./migrations/0000_r1_foods.sql
 	// then: wrangler d1 execute calbot-r1 --remote --file=./migrations/0001_sync_tables.sql
 	// Secrets: TELEGRAM_BOT_TOKEN, GOOGLE_SERVICE_ACCOUNT_EMAIL, GOOGLE_PRIVATE_KEY,
-	// NUTRITION_SHEET_ID, TRACKER_SHEET_ID, FATSECRET_*, NUTRITIONIX_*, ADMIN_SECRET
+	// NUTRITION_SHEET_ID, TRACKER_SHEET_ID, FATSECRET_*, NUTRITIONIX_*, ADMIN_SECRET.
+	// Optional: TELEGRAM_WEBHOOK_BASE_URL (e.g. https://calbot.xxx.workers.dev) for POST /admin/telegram-set-webhook.
 }

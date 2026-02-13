@@ -17,3 +17,6 @@ FATSECRET_CLIENT_SECRET=
 
 # Optional: protect /admin/sync-vectorize
 # ADMIN_SECRET=
+
+# Optional: echo mode for testing (bot replies with the same message, no meal logging)
+# TELEGRAM_ECHO_ONLY=true
