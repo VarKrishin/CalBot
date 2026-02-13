@@ -17,7 +17,9 @@ Rules:
 - Infer meal time from context (morning = breakfast, afternoon = lunch, evening = dinner). Default to "snack" if unclear.
 - Normalize quantities: "a couple" = 2, "half" = 0.5, "one" = 1. Extract numbers from "2 chapatis", "1 cup sambar".
 - Extract every food item separated by commas or "and". Ignore restaurant or place names; focus on food.
-- Use "n" for countable items (eggs, chapatis), "cup" for cups, "serving" for servings, "g" for grams, "ml" for ml.`
+- Use "n" for countable items (eggs, chapatis), "cup" for cups, "serving" for servings, "g" for grams, "ml" for ml.
+- If the message does not contain any food items (e.g. greeting, "hi", "thanks"), return {"meal_time": "snack", "foods": []}.
+- Never invent food items that the user did not mention.`
 
 function extractJson(text: string): string {
   const trimmed = text.trim()
@@ -40,7 +42,7 @@ export async function parseMeal(env: Env, userMessage: string): Promise<ParsedMe
     content = (choice.message?.content ?? choice.text ?? '').trim()
   }
   if (!content) {
-    return { meal_time: 'snack', foods: [{ name: userMessage.trim() || 'unknown', quantity: 1, unit: 'serving' }] }
+    return { meal_time: 'snack', foods: [] }
   }
   const raw = extractJson(content)
   try {
@@ -57,12 +59,9 @@ export async function parseMeal(env: Env, userMessage: string): Promise<ParsedMe
     const foods = mapped.filter((f) => f.name !== 'unknown')
     return {
       meal_time: validMeal,
-      foods: foods.length ? foods : [{ name: userMessage.trim() || 'unknown', quantity: 1, unit: 'serving' }],
+      foods: foods.length ? foods : [],
     }
   } catch {
-    return {
-      meal_time: 'snack',
-      foods: [{ name: userMessage.trim() || 'unknown', quantity: 1, unit: 'serving' }],
-    }
+    return { meal_time: 'snack', foods: [] }
   }
 }

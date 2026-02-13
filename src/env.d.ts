@@ -1,4 +1,10 @@
 /** Cloudflare Worker bindings for CalBot */
+declare global {
+  interface ExecutionContext {
+    waitUntil(promise: Promise<unknown>): void
+  }
+}
+
 export interface Env {
   /** Telegram */
   TELEGRAM_BOT_TOKEN: string

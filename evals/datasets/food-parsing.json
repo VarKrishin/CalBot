@@ -1,0 +1,203 @@
+[
+  {
+    "message": "2 eggs for breakfast",
+    "expected": {
+      "meal_time": "breakfast",
+      "foods": [{ "name": "egg", "quantity": 2, "unit": "n" }]
+    }
+  },
+  {
+    "message": "2 chapatis, protein shake, 1 cup sambar for breakfast",
+    "expected": {
+      "meal_time": "breakfast",
+      "foods": [
+        { "name": "chapati", "quantity": 2, "unit": "n" },
+        { "name": "protein shake", "quantity": 1, "unit": "serving" },
+        { "name": "sambar", "quantity": 1, "unit": "cup" }
+      ]
+    }
+  },
+  {
+    "message": "had rice and dal",
+    "expected": {
+      "meal_time": "lunch",
+      "foods": [
+        { "name": "rice", "quantity": 1, "unit": "serving" },
+        { "name": "dal", "quantity": 1, "unit": "serving" }
+      ]
+    }
+  },
+  {
+    "message": "half cup sambar",
+    "expected": {
+      "meal_time": "snack",
+      "foods": [{ "name": "sambar", "quantity": 0.5, "unit": "cup" }]
+    }
+  },
+  {
+    "message": "a couple eggs",
+    "expected": {
+      "meal_time": "snack",
+      "foods": [{ "name": "egg", "quantity": 2, "unit": "n" }]
+    }
+  },
+  {
+    "message": "100ml milk",
+    "expected": {
+      "meal_time": "snack",
+      "foods": [{ "name": "milk", "quantity": 100, "unit": "ml" }]
+    }
+  },
+  {
+    "message": "ghee podi dosa from Saravana Bhavan for breakfast",
+    "expected": {
+      "meal_time": "breakfast",
+      "foods": [{ "name": "ghee podi dosa", "quantity": 1, "unit": "serving" }]
+    }
+  },
+  {
+    "message": "amul ice cream 100ml",
+    "expected": {
+      "meal_time": "snack",
+      "foods": [{ "name": "amul ice cream", "quantity": 100, "unit": "ml" }]
+    }
+  },
+  {
+    "message": "1 cup sambar for lunch",
+    "expected": {
+      "meal_time": "lunch",
+      "foods": [{ "name": "sambar", "quantity": 1, "unit": "cup" }]
+    }
+  },
+  {
+    "message": "oatmeal and banana for breakfast",
+    "expected": {
+      "meal_time": "breakfast",
+      "foods": [
+        { "name": "oatmeal", "quantity": 1, "unit": "serving" },
+        { "name": "banana", "quantity": 1, "unit": "n" }
+      ]
+    }
+  },
+  {
+    "message": "3 chapatis with curry for dinner",
+    "expected": {
+      "meal_time": "dinner",
+      "foods": [
+        { "name": "chapati", "quantity": 3, "unit": "n" },
+        { "name": "curry", "quantity": 1, "unit": "serving" }
+      ]
+    }
+  },
+  {
+    "message": "protein shake",
+    "expected": {
+      "meal_time": "snack",
+      "foods": [{ "name": "protein shake", "quantity": 1, "unit": "serving" }]
+    }
+  },
+  {
+    "message": "two parottas and chicken curry for lunch",
+    "expected": {
+      "meal_time": "lunch",
+      "foods": [
+        { "name": "parotta", "quantity": 2, "unit": "n" },
+        { "name": "chicken curry", "quantity": 1, "unit": "serving" }
+      ]
+    }
+  },
+  {
+    "message": "1 tablespoon ghee",
+    "expected": {
+      "meal_time": "snack",
+      "foods": [{ "name": "ghee", "quantity": 1, "unit": "tablespoon" }]
+    }
+  },
+  {
+    "message": "steel cut oats 1/4 cup",
+    "expected": {
+      "meal_time": "snack",
+      "foods": [{ "name": "steel cut oats", "quantity": 0.25, "unit": "cup" }]
+    }
+  },
+  {
+    "message": "egg white and 2 whole eggs",
+    "expected": {
+      "meal_time": "snack",
+      "foods": [
+        { "name": "egg white", "quantity": 1, "unit": "n" },
+        { "name": "egg", "quantity": 2, "unit": "n" }
+      ]
+    }
+  },
+  {
+    "message": "rice, sambar, and curd for lunch",
+    "expected": {
+      "meal_time": "lunch",
+      "foods": [
+        { "name": "rice", "quantity": 1, "unit": "serving" },
+        { "name": "sambar", "quantity": 1, "unit": "serving" },
+        { "name": "curd", "quantity": 1, "unit": "serving" }
+      ]
+    }
+  },
+  {
+    "message": "peanut butter 2 tbsp",
+    "expected": {
+      "meal_time": "snack",
+      "foods": [{ "name": "peanut butter", "quantity": 2, "unit": "tablespoon" }]
+    }
+  },
+  {
+    "message": "soya chunks 50g",
+    "expected": {
+      "meal_time": "snack",
+      "foods": [{ "name": "soya chunks", "quantity": 50, "unit": "g" }]
+    }
+  },
+  {
+    "message": "paneer 100g for dinner",
+    "expected": {
+      "meal_time": "dinner",
+      "foods": [{ "name": "paneer", "quantity": 100, "unit": "g" }]
+    }
+  },
+  {
+    "message": "vegetables 1.5 cup cooked",
+    "expected": {
+      "meal_time": "snack",
+      "foods": [{ "name": "vegetables", "quantity": 1.5, "unit": "cup" }]
+    }
+  },
+  {
+    "message": "paruppu one cup",
+    "expected": {
+      "meal_time": "snack",
+      "foods": [{ "name": "paruppu", "quantity": 1, "unit": "cup" }]
+    }
+  },
+  {
+    "message": "chutney and idli for breakfast",
+    "expected": {
+      "meal_time": "breakfast",
+      "foods": [
+        { "name": "chutney", "quantity": 1, "unit": "serving" },
+        { "name": "idli", "quantity": 1, "unit": "n" }
+      ]
+    }
+  },
+  {
+    "message": "groundnut oil 1 teaspoon",
+    "expected": {
+      "meal_time": "snack",
+      "foods": [{ "name": "groundnut oil", "quantity": 1, "unit": "teaspoon" }]
+    }
+  },
+  {
+    "message": "one parotta",
+    "expected": {
+      "meal_time": "snack",
+      "foods": [{ "name": "parotta", "quantity": 1, "unit": "n" }]
+    }
+  }
+]

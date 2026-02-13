@@ -3,11 +3,13 @@ import type { ParsedFood, ResolvedFood, TrackerRow } from '../../types'
 import { sendMessage } from '../../lib/channels/telegram'
 import { fetchR1 } from '../../lib/data/r1'
 import { appendTrackerRows, appendNutritionRow } from '../../lib/api/sheets'
-import { parseMeal, resolveFood, quantityMultiplier, searchFood, syncVectorize } from '../../lib/food'
+import { classifyIntent } from '../../lib/intent/classify'
+import { parseMeal, validateParsedMeal, resolveFood, quantityMultiplier, searchFood, isPlausibleFood } from '../../lib/food'
 import { getNutritionFromFatSecret } from '../../lib/api/fatsecret'
 import { getNutritionFromAPI } from '../../lib/api/nutritionix'
 import { transcribeVoice } from '../../lib/voice'
 import { withRetry } from '../../lib/utils/retry'
+import { getReplyForNonFoodIntent, formatConfirmationMessage } from './replies'
 import type { TelegramUpdate } from './schema'
 
 function scaleResolved(
@@ -72,14 +74,25 @@ export async function handleTelegramUpdate(
     return
   }
 
+  const { intent } = await classifyIntent(env, text)
+  if (intent !== 'food_log') {
+    await reply(getReplyForNonFoodIntent(intent, text))
+    return
+  }
+
   executionCtx.waitUntil(
     (async () => {
       try {
-        const parsed = await withRetry(() => parseMeal(env, text))
+        const parsed = validateParsedMeal(await withRetry(() => parseMeal(env, text)))
+        const foodsToResolve = parsed.foods.filter((f) => isPlausibleFood(f.name))
+        if (foodsToResolve.length === 0) {
+          await reply("I didn't understand that. Try: 2 eggs for breakfast")
+          return
+        }
         const r1Rows = await withRetry(() => fetchR1(env))
         const resolved: Array<{ food: ResolvedFood; parsed: ParsedFood }> = []
 
-        for (const f of parsed.foods) {
+        for (const f of foodsToResolve) {
           let r: ResolvedFood | null = null
           const vectorMatch = await searchFood(env, f.name)
           if (vectorMatch) {
@@ -132,14 +145,7 @@ export async function handleTelegramUpdate(
           carbs: food.carbs,
         }))
         if (rows.length) await withRetry(() => appendTrackerRows(env, rows))
-        const totalCal = rows.reduce((s, r) => s + r.calories, 0)
-        const totalPro = rows.reduce((s, r) => s + r.protein, 0)
-        const lines = [`✅ ${mealLabel} logged: ${totalCal} kcal, ${totalPro}g protein`]
-        for (const { food } of resolved) {
-          const est = food.estimated ? ' (estimated)' : ''
-          lines.push(`• ${food.quantity} ${food.name}: ${food.calories} kcal${est}`)
-        }
-        await reply(lines.join('\n'))
+        await reply(formatConfirmationMessage(mealLabel, resolved))
       } catch (e) {
         console.error('Pipeline error', e)
         await reply('Something went wrong; try again.')

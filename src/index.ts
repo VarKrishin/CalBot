@@ -5,7 +5,13 @@ import { fetchNutrition } from './lib/api/sheets'
 import { syncVectorize } from './lib/food/index'
 import { syncSheetsToD1 } from './lib/data/sync'
 import { setWebHook, getWebHookInfo } from './lib/channels/telegram'
+import { classifyIntent } from './lib/intent/classify'
+import { parseMeal, validateParsedMeal, searchFood } from './lib/food'
+import { parsingMatch, type ParsedExpected } from './lib/eval/scoring'
 import { api } from './api'
+
+const EVAL_THRESHOLD = 7.0 / 10
+const EVAL_THRESHOLD_VECTOR_SEARCH = 0.5 // lower until R1/Vectorize is fully populated and names align with dataset
 
 const app = new Hono<{ Bindings: Env }>()
 
@@ -84,6 +90,66 @@ app.post('/admin/sync-vectorize', async (c) => {
   } catch (e) {
     console.error('Sync vectorize error', e)
     return c.json({ error: String(e) }, 500)
+  }
+})
+
+/**
+ * Run evals using Workers AI (same model as prod). Body: { eval: 'intent' | 'food_parsing' | 'vector_search', dataset: [...] }.
+ * Used by pnpm run eval when EVAL_WORKER_URL is set (e.g. http://localhost:8787 with wrangler dev).
+ */
+app.post('/admin/run-eval', async (c) => {
+  if (c.env.ADMIN_SECRET) {
+    const auth = c.req.header('Authorization')
+    if (auth !== `Bearer ${c.env.ADMIN_SECRET}`) return c.json({ error: 'Unauthorized' }, 401)
+  }
+  try {
+    const body = await c.req.json<{ eval: string; dataset: unknown[] }>()
+    const { eval: evalType, dataset } = body
+    if (!evalType || !Array.isArray(dataset) || dataset.length === 0) {
+      return c.json({ error: 'Body must be { eval: "intent"|"food_parsing"|"vector_search", dataset: [...] }' }, 400)
+    }
+
+    if (evalType === 'intent') {
+      let correct = 0
+      for (const ex of dataset as Array<{ message: string; expectedIntent: string }>) {
+        const { intent } = await classifyIntent(c.env, ex.message)
+        if (intent === ex.expectedIntent) correct++
+      }
+      const score = correct / dataset.length
+      return c.json({ passed: score >= EVAL_THRESHOLD, score })
+    }
+
+    if (evalType === 'food_parsing') {
+      let totalScore = 0
+      for (const ex of dataset as Array<{ message: string; expected: ParsedExpected }>) {
+        const parsed = await parseMeal(c.env, ex.message)
+        const validated = validateParsedMeal(parsed)
+        totalScore += parsingMatch(validated, ex.expected)
+      }
+      const score = totalScore / dataset.length
+      return c.json({ passed: score >= EVAL_THRESHOLD, score })
+    }
+
+    if (evalType === 'vector_search') {
+      if (!c.env.VECTORIZE) return c.json({ passed: false, score: 0, error: 'VECTORIZE not configured' }, 500)
+      const norm = (s: string) => s.toLowerCase().trim().replace(/\s+/g, ' ')
+      let correct = 0
+      for (const ex of dataset as Array<{ query: string; expectedMatch: string | null; shouldMatch: boolean }>) {
+        const match = await searchFood(c.env, ex.query)
+        const gotMatch = match !== null
+        const nameMatch =
+          ex.expectedMatch !== null && match !== null && norm(match.name) === norm(ex.expectedMatch)
+        if (ex.shouldMatch && nameMatch) correct++
+        else if (!ex.shouldMatch && !gotMatch) correct++
+      }
+      const score = correct / dataset.length
+      return c.json({ passed: score >= EVAL_THRESHOLD_VECTOR_SEARCH, score })
+    }
+
+    return c.json({ error: 'Unknown eval type. Use intent, food_parsing, or vector_search.' }, 400)
+  } catch (e) {
+    console.error('Run eval error', e)
+    return c.json({ passed: false, score: 0, error: String(e) }, 500)
   }
 })
 
