@@ -110,29 +110,35 @@ app.post('/admin/run-eval', async (c) => {
     }
 
     if (evalType === 'intent') {
+      const failures: Array<{ message: string; expected: string; got: string }> = []
       let correct = 0
       for (const ex of dataset as Array<{ message: string; expectedIntent: string }>) {
         const { intent } = await classifyIntent(c.env, ex.message)
         if (intent === ex.expectedIntent) correct++
+        else failures.push({ message: ex.message, expected: ex.expectedIntent, got: intent })
       }
       const score = correct / dataset.length
-      return c.json({ passed: score >= EVAL_THRESHOLD, score })
+      return c.json({ passed: score >= EVAL_THRESHOLD, score, failures })
     }
 
     if (evalType === 'food_parsing') {
+      const failures: Array<{ message: string; expected: ParsedExpected; got: unknown }> = []
       let totalScore = 0
       for (const ex of dataset as Array<{ message: string; expected: ParsedExpected }>) {
         const parsed = await parseMeal(c.env, ex.message)
         const validated = validateParsedMeal(parsed)
-        totalScore += parsingMatch(validated, ex.expected)
+        const itemScore = parsingMatch(validated, ex.expected)
+        totalScore += itemScore
+        if (itemScore < 1) failures.push({ message: ex.message, expected: ex.expected, got: validated })
       }
       const score = totalScore / dataset.length
-      return c.json({ passed: score >= EVAL_THRESHOLD, score })
+      return c.json({ passed: score >= EVAL_THRESHOLD, score, failures })
     }
 
     if (evalType === 'vector_search') {
       if (!c.env.VECTORIZE) return c.json({ passed: false, score: 0, error: 'VECTORIZE not configured' }, 500)
       const norm = (s: string) => s.toLowerCase().trim().replace(/\s+/g, ' ')
+      const failures: Array<{ query: string; expectedMatch: string | null; shouldMatch: boolean; got: string | null }> = []
       let correct = 0
       for (const ex of dataset as Array<{ query: string; expectedMatch: string | null; shouldMatch: boolean }>) {
         const match = await searchFood(c.env, ex.query)
@@ -141,9 +147,10 @@ app.post('/admin/run-eval', async (c) => {
           ex.expectedMatch !== null && match !== null && norm(match.name) === norm(ex.expectedMatch)
         if (ex.shouldMatch && nameMatch) correct++
         else if (!ex.shouldMatch && !gotMatch) correct++
+        else failures.push({ query: ex.query, expectedMatch: ex.expectedMatch, shouldMatch: ex.shouldMatch, got: match?.name ?? null })
       }
       const score = correct / dataset.length
-      return c.json({ passed: score >= EVAL_THRESHOLD_VECTOR_SEARCH, score })
+      return c.json({ passed: score >= EVAL_THRESHOLD_VECTOR_SEARCH, score, failures })
     }
 
     return c.json({ error: 'Unknown eval type. Use intent, food_parsing, or vector_search.' }, 400)

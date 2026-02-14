@@ -6,6 +6,29 @@ export function normalizeName(s: string): string {
   return s.toLowerCase().trim().replace(/\s+/g, ' ')
 }
 
+const UNIT_ALIASES: Record<string, string> = {
+  tbsp: 'tablespoon',
+  tb: 'tablespoon',
+  tablespoon: 'tablespoon',
+  tsp: 'teaspoon',
+  teasp: 'teaspoon',
+  teaspoon: 'teaspoon',
+  n: 'n',
+  cup: 'cup',
+  cups: 'cup',
+  g: 'g',
+  gram: 'g',
+  grams: 'g',
+  ml: 'ml',
+  serving: 'serving',
+  servings: 'serving',
+}
+
+function normalizeUnit(u: string): string {
+  const key = normalizeName(u)
+  return UNIT_ALIASES[key] ?? key
+}
+
 export interface FoodItemExpected {
   name: string
   quantity: number
@@ -31,7 +54,7 @@ export function parsingMatch(
     if (!a) return 0
     if (normalizeName(a.name) !== normalizeName(e.name)) score -= 0.4
     if (Math.abs((a.quantity || 1) - e.quantity) > 0.5) score -= 0.3
-    if (a.unit !== e.unit && normalizeName(a.unit) !== normalizeName(e.unit)) score -= 0.2
+    if (normalizeUnit(a.unit) !== normalizeUnit(e.unit)) score -= 0.2
   }
   return Math.max(0, score)
 }

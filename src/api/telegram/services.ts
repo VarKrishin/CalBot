@@ -47,6 +47,7 @@ export async function handleTelegramUpdate(
   if (msg.voice) {
     try {
       text = await transcribeVoice(env, msg.voice.file_id)
+      console.log('[telegram] voice transcript:', JSON.stringify(text))
       if (!text) {
         await reply('Could not transcribe the voice message. Try sending as text.')
         return

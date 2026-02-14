@@ -18,30 +18,35 @@ const workerUrl = process.env.EVAL_WORKER_URL?.replace(/\/$/, '')
 
 const CHUNK_SIZE = 6 // avoid worker timeout: each chunk does N LLM calls; 6 * ~3s = ~18s
 
+type EvalFailure =
+  | { message: string; expected: string; got: string }
+  | { message: string; expected: unknown; got: unknown }
+  | { query: string; expectedMatch: string | null; shouldMatch: boolean; got: string | null }
+
 async function runEvalViaWorker(
   evalType: 'intent' | 'food_parsing' | 'vector_search',
   dataset: unknown[]
-): Promise<{ passed: boolean; score: number; error?: string }> {
+): Promise<{ passed: boolean; score: number; error?: string; failures?: EvalFailure[] }> {
   const url = `${workerUrl}/admin/run-eval`
   const headers: Record<string, string> = { 'Content-Type': 'application/json' }
   if (process.env.EVAL_ADMIN_SECRET) headers['Authorization'] = `Bearer ${process.env.EVAL_ADMIN_SECRET}`
 
-  const doOne = async (chunk: unknown[]): Promise<{ passed: boolean; score: number; error?: string }> => {
+  const doOne = async (chunk: unknown[]): Promise<{ passed: boolean; score: number; error?: string; failures?: EvalFailure[] }> => {
     const res = await fetch(url, {
       method: 'POST',
       headers,
       body: JSON.stringify({ eval: evalType, dataset: chunk }),
     })
     const text = await res.text()
-    let data: { passed?: boolean; score?: number; error?: string }
+    let data: { passed?: boolean; score?: number; error?: string; failures?: EvalFailure[] }
     try {
-      data = JSON.parse(text) as { passed?: boolean; score?: number; error?: string }
+      data = JSON.parse(text) as { passed?: boolean; score?: number; error?: string; failures?: EvalFailure[] }
     } catch {
       const snippet = text.startsWith('<') ? 'HTML error page' : text.slice(0, 200)
       return { passed: false, score: 0, error: `Worker returned non-JSON (${res.status}): ${snippet}` }
     }
     if (!res.ok) return { passed: false, score: 0, error: data.error || res.statusText }
-    return { passed: data.passed ?? false, score: data.score ?? 0, error: data.error }
+    return { passed: data.passed ?? false, score: data.score ?? 0, error: data.error, failures: data.failures }
   }
 
   if (dataset.length <= CHUNK_SIZE) {
@@ -51,21 +56,22 @@ async function runEvalViaWorker(
   for (let i = 0; i < dataset.length; i += CHUNK_SIZE) {
     chunks.push(dataset.slice(i, i + CHUNK_SIZE))
   }
-  const results: { passed: boolean; score: number; error?: string }[] = []
+  const chunkResults: { passed: boolean; score: number; error?: string; failures?: EvalFailure[] }[] = []
   for (const chunk of chunks) {
     const r = await doOne(chunk)
-    results.push(r)
+    chunkResults.push(r)
     if (r.error) return { passed: false, score: 0, error: r.error }
   }
-  const totalScore = results.reduce((sum, r, i) => sum + (r.score ?? 0) * chunks[i].length, 0)
+  const totalScore = chunkResults.reduce((sum, r, i) => sum + (r.score ?? 0) * chunks[i].length, 0)
   const totalCount = dataset.length
   const score = totalScore / totalCount
   const passed = score >= THRESHOLD
-  return { passed, score }
+  const failures = chunkResults.flatMap((r) => r.failures ?? [])
+  return { passed, score, failures: failures.length ? failures : undefined }
 }
 
 async function main() {
-  const results: { name: string; passed: boolean; score?: number; error?: string }[] = []
+  const results: { name: string; passed: boolean; score?: number; error?: string; failures?: EvalFailure[] }[] = []
 
   if (useMock) {
     console.log('Running evals with rule-based / mock (CI mode)')
@@ -96,21 +102,21 @@ async function main() {
     try {
       const intentData = JSON.parse(readFileSync(join(datasetsDir, 'intent-classification.json'), 'utf-8'))
       const r1 = await runEvalViaWorker('intent', intentData)
-      results.push({ name: 'intent-classification', passed: r1.passed, score: r1.score, error: r1.error })
+      results.push({ name: 'intent-classification', passed: r1.passed, score: r1.score, error: r1.error, failures: r1.failures })
     } catch (e) {
       results.push({ name: 'intent-classification', passed: false, error: String(e) })
     }
     try {
       const foodData = JSON.parse(readFileSync(join(datasetsDir, 'food-parsing.json'), 'utf-8'))
       const r2 = await runEvalViaWorker('food_parsing', foodData)
-      results.push({ name: 'food-parsing', passed: r2.passed, score: r2.score, error: r2.error })
+      results.push({ name: 'food-parsing', passed: r2.passed, score: r2.score, error: r2.error, failures: r2.failures })
     } catch (e) {
       results.push({ name: 'food-parsing', passed: false, error: String(e) })
     }
     try {
       const vectorData = JSON.parse(readFileSync(join(datasetsDir, 'vector-search.json'), 'utf-8'))
       const r3 = await runEvalViaWorker('vector_search', vectorData)
-      results.push({ name: 'vector-search', passed: r3.passed, score: r3.score, error: r3.error })
+      results.push({ name: 'vector-search', passed: r3.passed, score: r3.score, error: r3.error, failures: r3.failures })
     } catch (e) {
       results.push({ name: 'vector-search', passed: false, error: String(e) })
     }
@@ -130,6 +136,23 @@ async function main() {
   console.log(JSON.stringify({ results: report.results }, null, 2))
   const summary = results.map((r) => `${r.name}: ${r.passed ? 'PASS' : 'FAIL'}${r.score != null ? ` (${(r.score * 100).toFixed(0)}%)` : ''}`).join(' | ')
   console.log('Summary:', summary)
+
+  for (const r of results) {
+    if (r.failures?.length) {
+      console.log('\nFailed cases for', r.name + ':')
+      for (const f of r.failures) {
+        if ('query' in f) {
+          console.log('  -', JSON.stringify(f.query), '| shouldMatch:', f.shouldMatch, '| expected:', f.expectedMatch, '| got:', f.got)
+        } else if (r.name === 'intent-classification') {
+          console.log('  -', JSON.stringify(f.message), '→ expected:', f.expected, 'got:', f.got)
+        } else {
+          console.log('  -', JSON.stringify(f.message))
+          console.log('    expected:', JSON.stringify(f.expected))
+          console.log('    got:     ', JSON.stringify(f.got))
+        }
+      }
+    }
+  }
 
   const outputPath = process.env.EVAL_OUTPUT_FILE
   if (outputPath) {

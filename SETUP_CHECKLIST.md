@@ -119,6 +119,8 @@ curl -X POST "https://calbot.<your-subdomain>.workers.dev/admin/telegram-set-web
 
 Same endpoint, same body shape; only the URL you call and the `baseUrl` you pass change. Optional: set `TELEGRAM_WEBHOOK_BASE_URL` in production and omit the body so the app uses that as base URL. To clear the webhook later: `curl "https://api.telegram.org/bot<TOKEN>/deleteWebhook"`.
 
+**If you get Telegram error 1031 (or “wrong webhook” / “bad webhook”) with ngrok:** Telegram verifies the webhook URL by requesting it. ngrok’s free tier can show an interstitial “Visit Site” page for some requests, so Telegram may get a non-200 response and reject the webhook. Fixes: use [Cloudflare Tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-apps/) (e.g. `cloudflared tunnel --url http://localhost:8787`) instead of ngrok, or use a paid ngrok plan so the interstitial is disabled.
+
 ---
 
 ## 8. Seed R1 (reference foods in D1)

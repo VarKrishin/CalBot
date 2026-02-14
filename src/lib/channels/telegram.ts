@@ -54,6 +54,14 @@ export async function setWebHook(env: Env, webhookUrl: string, maxConnections = 
     const err = await res.text()
     throw new Error(`setWebHook failed: ${res.status} ${err}`)
   }
-  const data = (await res.json()) as { ok: boolean; description?: string }
-  if (!data.ok) throw new Error(data.description ?? 'setWebHook returned ok: false')
+  const data = (await res.json()) as {
+    ok: boolean
+    error_code?: number
+    description?: string
+  }
+  if (!data.ok) {
+    const code = data.error_code ?? ''
+    const msg = data.description ?? 'setWebHook returned ok: false'
+    throw new Error(`Telegram setWebhook failed (${code}): ${msg}`)
+  }
 }

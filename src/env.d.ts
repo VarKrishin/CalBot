@@ -60,11 +60,16 @@ export interface Ai {
     options: {
       messages?: Array<{ role: string; content: string }>
       prompt?: string
-      audio?: ArrayBuffer
+      /** Whisper: base64-encoded audio string. */
+      audio?: string
+      /** Whisper: ISO 639-1 language code (e.g. "en"). */
+      language?: string
+      /** Whisper: text prompt to bias transcription (e.g. food/meal terms). */
+      initial_prompt?: string
       /** Used by embedding models (e.g. @cf/qwen/qwen3-embedding-0.6b) */
       text?: string | string[]
     }
-  ): Promise<{ response?: string; choices?: Array<{ message?: { content?: string }; text?: string }>; data?: number[][] }>
+  ): Promise<{ response?: string; choices?: Array<{ message?: { content?: string }; text?: string }>; data?: number[][]; text?: string }>
 }
 
 export interface VectorizeIndex {
